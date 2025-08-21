@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html ng-app="toeicApp">
+<head>
+  <meta charset="UTF-8">
+  <title>TOEIC JSON Converter</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.3/angular.min.js"></script>
+  <script>
+    angular.module('toeicApp', [])
+      .controller('MainCtrl', ['$scope', '$timeout', function ($scope, $timeout) {
+        $scope.inputText = '';
+        $scope.outputJson = '';
+        $scope.testName = 'test_1';
+        $scope.answerText = '';
+		
+		$scope.parseAnswers = function () {
+		  const map = {};
+		  const raw = $scope.answerText
+			.replace(/,/g, ' ')        // thay dấu phẩy bằng dấu cách
+			.replace(/\s+/g, ' ')      // chuẩn hoá khoảng trắng thừa
+			.trim();                   // xoá khoảng trắng đầu/cuối
+
+		  const tokens = raw.split(' ');
+		  tokens.forEach(token => {
+			const match = token.match(/(\d+)\.?\s*([A-D])/i);
+			if (match) {
+			  const id = parseInt(match[1]);
+			  const answer = match[2].toUpperCase();
+			  map[id] = answer;
+			}
+		  });
+
+		  return map;
+		};
+
+        $scope.convertToJson = function () {
+          const lines = $scope.inputText.split('\n').map(l => l.trim()).filter(l => l !== '');
+          const questions = [];
+          let i = 0;
+		  const answers = $scope.parseAnswers();
+
+          while (i < lines.length) {
+            const questionMatch = lines[i].match(/^(\d+)\.\s*(.*)/);
+            if (questionMatch) {
+              const id = parseInt(questionMatch[1]);
+              const questionText = questionMatch[2];
+              const maxOptions = (id > 10 && id < 41) ? 3 : 4;
+              const options = [];
+              let j = i + 1;
+              while (j < lines.length && options.length < maxOptions) {
+                const optionMatch = lines[j].match(/^([A-D])\.\s+(.+)/);
+                if (optionMatch) {
+                  options.push({
+                    value: optionMatch[1],
+                    text: optionMatch[2]
+                  });
+                }
+                j++;
+              }
+
+              const q = {
+                id,
+                part: '', // sẽ gán sau
+                text: questionText,
+                correctAnswer: answers[id] || '',
+                image: null,
+                passageImage: null,
+                audio: null,
+                passageAudio: null,
+                passage: null,
+                options
+              };
+
+              questions.push(q);
+              i = j;
+            } else {
+              i++;
+            }
+          }
+
+          // Xác định part và thuộc tính theo part
+          questions.forEach((q, index) => {
+            const id = q.id;
+            const test = $scope.testName;
+
+            if (id >= 1 && id <= 10) {
+              q.part = 'Part I';
+              q.image = `${test}_${id}.PNG`;
+              q.audio = `${test}_${id}.mp3`;
+            } else if (id >= 11 && id <= 40) {
+              q.part = 'Part II';
+              q.audio = `${test}_${id}.mp3`;
+            } else if (id >= 41 && id <= 70) {
+              q.part = 'Part III';
+              if (index % 3 === 0) {
+                const from = q.id;
+                const to = questions[index + 2]?.id || from;
+                const audio = `${test}_${from}_${to}.mp3`;
+                q.passageAudio = audio;
+              }
+            } else if (id >= 71 && id <= 100) {
+              q.part = 'Part IV';
+              if (index % 3 === 0) {
+                const from = q.id;
+                const to = questions[index + 2]?.id || from;
+                const audio = `${test}_${from}_${to}.mp3`;
+                q.passageAudio = audio;
+              }
+            } else if (id >= 101 && id <= 140) {
+              q.part = 'Part V';
+            } else if (id >= 141 && id <= 152) {
+              q.part = 'Part VI';
+              q.passage = null;
+            } else if (id >= 153 && id <= 200) {
+              q.part = 'Part VII';
+              q.passage = null;
+            } else {
+              q.part = 'Unknown';
+            }
+          });
+
+          $scope.outputJson = JSON.stringify(questions, null, 2);
+        };
+
+        $scope.copyJson = function () {
+          navigator.clipboard.writeText($scope.outputJson).then(() => {
+            alert("Copied!");
+          });
+        };
+      }]);
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body ng-controller="MainCtrl" class="bg-gray-100 p-6">
+  <div class="max-w-screen-xl mx-auto">
+    <div class="mb-6">
+      <label class="block text-lg font-medium mb-1">📁 Tên đề thi (testName)</label>
+      <input type="text" ng-model="testName"
+             class="p-2 border border-gray-300 rounded w-full max-w-xs font-mono"
+             placeholder="test_1" ng-change="convertToJson()" />
+    </div>
+	<div class="mb-6">
+          <label class="block font-medium mb-1">Đáp án (ví dụ: 1.D, 2.A...)</label>
+          <textarea ng-model="answerText" ng-change="convertToJson()" rows="2" class="w-full p-2 border rounded"></textarea>
+        </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Input -->
+      <div>
+        <h2 class="text-xl font-bold mb-2">📥 Nhập nội dung đề TOEIC</h2>
+        <textarea ng-model="inputText" ng-change="convertToJson()"
+                  class="w-full h-[600px] p-4 border border-gray-300 rounded shadow font-mono resize-none"
+                  placeholder="Dán nội dung đề tại đây..."></textarea>
+      </div>
+
+      <!-- Output + Copy -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-xl font-bold">📤 Kết quả JSON</h2>
+          <button ng-click="copyJson()"
+                  class="px-4 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition">
+            📋 Copy JSON
+          </button>
+        </div>
+        <div class="relative">
+          <textarea readonly
+                    class="w-full h-[600px] p-4 border border-gray-300 rounded bg-gray-50 shadow font-mono text-sm resize-none"
+                    ng-bind="outputJson"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

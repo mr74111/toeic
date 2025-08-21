@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="ToeicApp">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline TOEIC Test</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js" integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
+    <!-- AngularJS CDN -->
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+    <!-- AngularJS Route CDN -->
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular-route.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular-sanitize.js"></script>
+    <!-- Tests data -->
+    <script src="assets/test1.js"></script>
+    <script src="assets/test2.js"></script>
+    <script src="assets/test3.js"></script>
+    <script src="assets/test4.js"></script>
+    <script src="assets/part6.js"></script>
+    <script src="assets/part7.js"></script>
+    <style>
+      ::-webkit-scrollbar {
+        width: 17px !important;
+        height: 17px !important;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background-color: #c6c6c6;
+        border-radius: 100px !important;
+        background-clip: content-box;
+        border: 5px solid transparent !important;
+        min-width: 50px;
+        min-height: 50px;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: #c2c2c2;
+      }
+      body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 0;
+          font-size: 14px;
+      }
+      hr {
+            margin: 10px 0 !important;
+        }
+      .question-section {
+          max-height: calc(100vh - 190px);
+          overflow-y: auto;
+      }
+      .question-section.practice {
+          max-height: calc(100vh - 250px);
+      }
+      .sidebar-section {
+          max-height: calc(100vh - 315px);
+          overflow-y: auto;
+      }
+      .sidebar-section.practice {
+          max-height: calc(100vh - 375px);
+      }
+      [ng\:cloak], [ng-cloak], [data-ng-cloak], [x-ng-cloak], .ng-cloak, .x-ng-cloak {
+        display: none !important;
+      }
+    </style>
+</head>
+<body class="bg-gray-100" ng-cloak>
+    <div class="container mx-auto p-4" ng-class="{'p-4': $root.isAuthenticated}">
+        <!-- Header -->
+        <div ng-controller="HeaderController" ng-if="$root.isAuthenticated" class="flex justify-between items-center bg-[#2399d2] text-white p-4 rounded-lg">
+            <a href="#!/"><h1 class="text-2xl">OFFLINE TOEIC TEST</h1></a>
+            <div class="flex items-center space-x-4">
+				<div ng-click="logout()" class="w-10 h-10 rounded-full bg-cyan-700 text-white font-bold text-sm cursor-pointer flex items-center justify-center">GU</div>
+            </div>
+        </div>
+
+        <!-- Routing View -->
+        <div ng-class="{'pt-4': $root.isAuthenticated}">
+            <div ng-view></div>
+        </div>
+    </div>
+
+    <!-- AngularJS Script -->
+    <script>
+        const tests = [
+            test1,
+            test2,
+            test3,
+            test4
+        ];
+        const allQuestions = test1.questions.concat(test2.questions, test3.questions, test4.questions);
+        let partVQuestions = [];
+        allQuestions.forEach(function(item) {
+            if (item.part === 'Part V') {
+                partVQuestions.push(item);
+            }
+        });
+        
+        function shuffleArray(array) {
+            const result = array.slice();
+            for (let i = result.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+            return result;
+        }
+        function filterUniqueQuestion(questions, isUniquePassage) {
+            const seen = new Set();
+            const result = [];
+            let i = 1;
+            const itemProp = isUniquePassage ? 'passage' : 'text';
+            for (const item of (questions || [])) {
+                if (!item[itemProp] || typeof item[itemProp] !== 'string') continue;
+                const prefix = item[itemProp].substring(0, 30);
+                if (!seen.has(prefix)) {
+                    seen.add(prefix);
+                    const copiedItem = { ...item };
+                    copiedItem.id = i;
+                    result.push(copiedItem);
+                    i++;
+                }
+            }
+            return result;
+        }
+
+        function convertPart67Collection(selectedTest) {
+            const shuffled = shuffleArray(selectedTest.questions);
+
+            const mergedQuestions = shuffled.flatMap(questionGroup => {
+                questionGroup.questions[0]['passage'] = questionGroup.passage || null;
+                questionGroup.questions[0]['passageImage'] = questionGroup.passageImage || null;
+                return questionGroup.questions;
+            });
+            return mergedQuestions.map((q, index) => {
+                const questionId = index + 1;
+                if ((selectedTest.id === 6 || selectedTest.id === 7) && q.passage) {
+                    q.passage = q.passage
+                        .replace(/\(1\)/g, '(' + questionId + ')')
+                        .replace(/\(2\)/g, '(' + (questionId + 1) + ')')
+                        .replace(/\(3\)/g, '(' + (questionId + 2) + ')');
+                }
+                return {
+                    ...q,
+                    id: questionId,
+                    part: selectedTest.id === 6 ? 'Part VI' : 'Part VII'
+                }
+            });
+        }
+        const uniqueResultPartV = filterUniqueQuestion(partVQuestions);
+        const randomPart6 = convertPart67Collection(part6);
+        const randomPart7 = convertPart67Collection(part7);
+        tests.push({
+            id: 5,
+            title: "Part V Collection",
+            description: "Random question",
+            thumbnailUrl: "part_5_collection.PNG",
+            isCollection: true,
+            questions: uniqueResultPartV
+        });
+        tests.push({
+            id: 6,
+            title: "Part VI Collection",
+            description: "Random question",
+            thumbnailUrl: "part_6_collection.PNG",
+            isCollection: true,
+            questions: randomPart6
+        });
+        tests.push({
+            id: 7,
+            title: "Part VII Collection",
+            description: "Random question",
+            thumbnailUrl: "part_7_collection.PNG",
+            isCollection: true,
+            questions: randomPart7
+        });
+        // AngularJS App with Routing
+        angular.module('ToeicApp', ['ngRoute', 'ngSanitize'])
+            .config(['$routeProvider', function($routeProvider) {
+                $routeProvider
+                    .when('/login', {
+                        template: `
+                            <div class="flex items-center justify-center min-h-screen bg-gray-100">
+                            <div class="bg-white m-4 p-6 rounded-lg shadow-lg w-full max-w-md">
+                                <h2 class="text-2xl font-bold mb-4 text-center">OFFLINE TOEIC TEST</h2>
+                                <form ng-submit="login()">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <input type="password" id="password" ng-model="password" placeholder="Password..." class="flex-1 p-2 border rounded outline-none" required>
+                                        <button type="submit" class="bg-blue-500 text-white font-bold px-4 py-2 rounded hover:bg-blue-600">GO</button>
+                                    </div>
+                                </form>
+                                <p class="text-red-500 mt-1" ng-if="loginError">{{ loginError }}</p>
+                            </div>
+                        </div>
+                        `,
+                        controller: 'LoginController'
+                    })
+                    .when('/', {
+                        template: `
+                            <div>
+                                <h1 class="text-3xl font-bold text-center mb-6">TOEIC Test List</h1>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div ng-repeat="test in tests" class="bg-white p-4 rounded-lg shadow hover:shadow-lg flex items-start space-x-4">
+                                        <!-- Thumbnail image -->
+                                        <img ng-src="{{ 'assets/image/' + test.thumbnailUrl }}" alt="Thumbnail" class="w-32 h-32 object-cover rounded">
+
+                                        <!-- Test info -->
+                                        <div class="flex-1">
+                                            <h2 class="text-xl font-bold">{{ test.title }}</h2>
+                                            <p class="text-gray-600">Description: {{ test.description }}</p>
+                                            <p class="text-gray-600">Number of Questions: {{ test.questions.length }}</p>
+                                            <div class="mt-4 flex space-x-2">
+                                                <button class="bg-cyan-500 text-white px-4 py-2 rounded hover:bg-cyan-600"
+                                                        ng-click="startTest(test.id, 'practice')">
+                                                    Practice
+                                                </button>
+                                                <button ng-if="!test.isCollection" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                                        ng-click="startTest(test.id, 'full')">
+                                                    Test
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `,
+                        controller: 'TestListController'
+                    })
+                    .when('/test/:testId', {
+                        template: `
+                            <div ng-if="testMode === 'full' && !testStarted" class="bg-white p-4 rounded-lg shadow text-center mb-4">
+                                <h1 class="text-2xl font-bold mb-4">Ready to Start {{ selectedTest.title }}?</h1>
+                                <button class="bg-green-500 text-white px-6 py-3 rounded hover:bg-green-600"
+                                    ng-click="confirmStartTest()">
+                                    Start
+                                </button>
+                              </div>
+                            <div ng-if="testMode === 'practice' || (testMode === 'full' && testStarted)">
+                              <div ng-if="showReview" class="bg-white p-4 rounded-lg shadow text-center mb-4">
+                                <h2 class="text-xl font-bold">Listening Score: {{ listeningScore }} / {{ listeningTotal }} (Scaled: {{ listeningScaled }})</h2>
+                                <h2 class="text-xl font-bold">Reading Score: {{ readingScore }} / {{ readingTotal }} (Scaled: {{ readingScaled }})</h2>
+                                <h2 class="text-xl font-bold">Total TOEIC Score: {{ listeningScaled + readingScaled }} / 990</h2>
+                                <!-- <button class="mt-4 bg-cyan-500 text-white px-4 py-2 rounded hover:bg-cyan-600"
+                                        ng-click="toggleReview()">
+                                    {{ showReview ? 'Hide Review' : 'Review Answers' }}
+                                </button> -->
+                                <button class="mt-4 ml-4 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                                        ng-click="goBackToList()">
+                                    Back to Test List
+                                </button>
+                              </div>
+                                <!-- Test Content -->
+                                <!-- Navigation Tabs -->
+                                <div class="flex flex-wrap gap-2 justify-between items-center bg-gray-200 p-2 rounded-lg mb-4">
+                                    <div class="flex flex-wrap gap-2">
+                                        <button ng-repeat="part in parts" 
+                                                ng-class="{ 'bg-cyan-500 text-white': currentPart === part, 'bg-gray-300 text-gray-700': currentPart !== part }" 
+                                                class="flex-1 min-w-[80px] py-2 rounded" 
+                                                ng-click="changePart(part)">
+                                            {{ part }}
+                                        </button>
+                                    </div>
+                                    <div  ng-if="!showReview" class="flex items-center space-x-4">
+                                        <div class="flex flex-col sm:flex-row items-center space-x-2">
+                                            <div class="w-32 bg-gray-300 rounded-full h-2.5">
+                                                <div class="bg-cyan-500 h-2.5 rounded-full" style="width: {{ calculateProgress() }}%"></div>
+                                            </div>
+                                            <span>{{ answeredCount }}/{{ questions.length }} answered</span>
+                                        </div>
+                                        <span>⏰Time: {{ formatTime(timer) }}</span>
+                                    </div>
+                                </div>
+                                <!-- Questions Section -->
+                                <div  class="flex flex-col" ng-class="{'md:flex-row': !showReview}">
+                                    <!-- Questions -->
+                                    <div class="bg-white p-4 rounded-lg shadow question-section" ng-class="{'md:w-3/4': !showReview, 'practice': testMode === 'practice'}">
+                                        <!-- Questions -->
+                                        <div ng-repeat="question in filteredQuestions" class="mb-6">
+                                          <!-- Passage (if applicable) -->
+                                            <div class="my-2 bg-sky-100 p-4 rounded-lg" ng-if="question.passage" ng-bind-html="question.passage | safeHtml"></div>
+                                            <div class="my-2" ng-if="question.passageImage">
+                                              <img ng-src="{{ imageResourceUrl + question.passageImage }}" alt="Question Image" class="max-w-full h-auto rounded">
+                                            </div>
+                                            <div ng-if="question.passageAudio && testMode === 'practice'" class="my-2 gap-2">
+                                              <button 
+                                                    class="bg-cyan-500 text-white px-3 py-1 rounded hover:bg-cyan-600"
+                                                    ng-click="jumpTo(question.startTime)">
+                                                    🔊 Click Here to Listen
+                                                </button>
+                                            </div>
+                                          <!-- Question -->
+                                          <p><span class="font-bold">Question {{ question.id }}:</span> <span ng-if="showReview || !(currentPart === 'Part I' || currentPart === 'Part II') || question.isShowScript">{{ question.text }}</span></p>
+                                          <!-- Audio and Image for Listening (Practice Mode Only) -->
+                                          <div ng-if="testMode === 'practice' && (currentPart === 'Part I' || currentPart === 'Part II' || currentPart === 'Part III' || currentPart === 'Part IV')" class="my-2">
+                                            <div ng-if="question.image" class="mb-4">
+                                              <img ng-src="{{ imageResourceUrl + question.image }}" alt="Question Image" class="max-w-[400px] h-auto rounded">
+                                            </div>
+                                            <div ng-if="question.audio" class="mb-4 gap-2">
+                                              <button 
+                                                    class="bg-cyan-500 text-white px-3 py-1 rounded hover:bg-cyan-600"
+                                                    ng-click="jumpTo(question.startTime)">
+                                                    🔊 Click Here to Listen
+                                                </button>
+                                                <button ng-if="!showReview"
+                                                    class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
+                                                    ng-click="question.isShowScript = !question.isShowScript">
+                                                    <span ng-show="!question.isShowScript">Show Script</span>
+                                                    <span ng-show="question.isShowScript">Hide Script</span>
+                                                </button>
+                                            </div>
+                                          </div>
+                                          <!-- Image for Listening (Full Test Mode) -->
+                                          <div ng-if="testMode === 'full' && (currentPart === 'Part I' || currentPart === 'Part II' || currentPart === 'Part III' || currentPart === 'Part IV')" class="my-2">
+                                            <div ng-if="question.image" class="mb-4">
+                                              <img ng-src="{{ imageResourceUrl + question.image }}" alt="Question Image" class="max-w-[400px] h-auto rounded">
+                                            </div>
+                                          </div>
+                                          <div class="mt-2">
+                                              <label ng-repeat="option in question.options"class="block"
+                                                ng-hide="option.value === 'D' && question.part === 'Part II'"
+                                                ng-class="{ 
+                                                  'text-green-600': (showReview || question.isShowScript) && option.value === question.correctAnswer,
+                                                  'text-red-600': (showReview || question.isShowScript) && userAnswers[question.id] === option.value && option.value !== question.correctAnswer }">
+                                                  <input type="radio" 
+                                                          ng-model="userAnswers[question.id]" 
+                                                          ng-value="option.value" 
+                                                          class="mr-2"
+                                                          ng-disabled="score !== null"
+                                                          ng-change="updateProgress()"
+                                                          [disabled]="showReview">
+                                                  {{ option.value }}. <span ng-if="showReview || !(currentPart === 'Part I' || currentPart === 'Part II') || question.isShowScript">{{ option.text }}</span>
+                                                  <span ng-if="(showReview || question.isShowScript) && option.value === question.correctAnswer"> ✅</span>
+                                                  <span ng-if="(showReview || question.isShowScript) && userAnswers[question.id] === option.value && option.value !== question.correctAnswer"> ❌</span>
+                                              </label>
+                                          </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Sidebar -->
+                                    <div ng-if="!showReview" class="mt-4 md:mt-0 md:ml-4 md:w-1/4 bg-white p-4 rounded-lg shadow flex flex-col">
+                                        <h2 class="font-bold mb-4">{{ currentPart }}</h2>
+                                        <div class="space-y-4 sidebar-section flex-grow" ng-class="{'practice': testMode === 'practice'}">
+                                            <div ng-repeat="question in questions" ng-if="question.part === currentPart" class="flex items-center space-x-2">
+                                                <span class="font-bold">{{ question.id }}.</span>
+                                                <div class="grid grid-cols-4 gap-1">
+                                                    <button ng-repeat="option in ['A', 'B', 'C', 'D']"
+                                                            ng-hide="option === 'D' && question.part === 'Part II'"
+                                                            ng-class="{ 'bg-cyan-500 text-white': userAnswers[question.id] === option, 'bg-gray-300': userAnswers[question.id] !== option }" 
+                                                            class="w-6 h-6 rounded-full flex items-center justify-center text-xs"
+                                                            ng-click="selectAnswer(question.id, option)"
+                                                            ng-disabled="score !== null">
+                                                        {{ option }}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Submit Button Inside Sidebar -->
+                                        <div class="mt-4">
+                                            <button class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 w-full"
+                                                    ng-click="submitTest()">
+                                                Submit
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Fixed Audio Player -->
+                            <div ng-if="testMode === 'practice'" ng-hide="(currentPart === 'Part V' || currentPart === 'Part VI' || currentPart === 'Part VII')" class="fixed bottom-0 left-0 w-full bg-white shadow z-50">
+                            <div class="container mx-auto px-4 py-2">
+                                <audio id="fullAudio" controls preload="metadata" class="w-full h-10">
+                                <source ng-src="{{ audioResourceUrl + selectedTest.fullAudio}}" type="audio/mpeg">
+                                Your browser does not support the audio element.
+                                </audio>
+                            </div>
+                            </div>
+                        `,
+                        controller: 'ToeicController'
+                    })
+                    .otherwise({ redirectTo: '/' });
+            }])
+            .run(function($rootScope, $location) {
+                $rootScope.$on('$routeChangeStart', function(event, next, current) {
+                    $rootScope.isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+                    if ($rootScope.isAuthenticated) {
+                        if (next.originalPath === '/login') {
+                            $location.path('/');
+                        }
+                    } else {
+                        $location.path('/login');
+                    }
+                });
+            })
+            .filter('safeHtml', function($sce) { 
+                return function(input) {
+                    if (!input) return '';
+                    // var html = input.replace(/<br\s*\/?>/gi, '<div class="h-2"></div>');
+                    return $sce.trustAsHtml(input);
+                };
+            })
+            .controller('HeaderController', function($scope, $rootScope, $location) {
+                $scope.logout = function () {
+                    localStorage.removeItem('isAuthenticated');
+                    $location.path('/login');
+                };
+            })
+            .controller('LoginController', function($scope, $location) {
+                $scope.password = '';
+                $scope.loginError = '';
+
+                const PASSWORD = 'toeic2025';
+
+                $scope.login = function() {
+                    if ($scope.password === PASSWORD) {
+                        $scope.$parent.isAuthenticated = true; // Set authentication state in root scope
+                        localStorage.setItem('isAuthenticated', 'true'); // Store authentication state in localStorage
+                        $location.path('/');
+                    } else {
+                        $scope.loginError = 'Incorrect password. Please try again.';
+                    }
+                };
+            })
+            .controller('TestListController', function($scope, $location) {
+                $scope.tests = tests;
+                $scope.startTest = function(testId, mode) {
+                    const selectedTest = $scope.tests.find(test => test.id == testId);
+                    if (selectedTest.id === 5 && selectedTest.isCollection) {
+                        const shuffled = shuffleArray(selectedTest.questions);
+                        selectedTest.questions = shuffled.map((q, index) => ({
+                            ...q,
+                            id: index + 1
+                        }));
+                    }
+                    $location.path('/test/' + testId).search({ mode: mode });
+                };
+            })
+            .controller('ToeicController', function($scope, $interval, $routeParams, $location) {
+                let timerPromise;
+                // Find the selected test
+                $scope.selectedTest = tests.find(test => test.id == $routeParams.testId);
+                if (!$scope.selectedTest) {
+                    $location.path('/');
+                    return;
+                }
+
+                // Get test mode from URL params
+                $scope.testMode = $location.search().mode || 'practice';
+
+                // Initialize data
+                $scope.questions = $scope.selectedTest.questions;
+                $scope.currentQuestionIndex = 0;
+                $scope.userAnswers = {};
+                $scope.timer = 7200; // 120 minutes = 7200 seconds
+                $scope.testStarted = false;
+                $scope.score = null;
+                $scope.showReview = false;
+                $scope.listeningScore = 0;
+                $scope.readingScore = 0;
+                $scope.listeningTotal = 0;
+                $scope.readingTotal = 0;
+                $scope.listeningScaled = 0;
+                $scope.readingScaled = 0;
+                $scope.progress = 0;
+                $scope.audio = null;
+                $scope.answeredCount = 0;
+                $scope.audioResourceUrl = "assets/audio/";
+                $scope.imageResourceUrl = "assets/image/";
+                $scope.parts = [];
+                $scope.questions.forEach(q => {
+                    if (q.part && !$scope.parts.includes(q.part)) {
+                        $scope.parts.push(q.part);
+                    }
+                });
+                $scope.currentPart = $scope.parts[0];
+                $scope.currentPartIndex = 0;
+
+                // Cleanup audio on scope destroy
+                $scope.$on('$destroy', function() {
+                    if ($scope.audio) {
+                        $scope.audio.pause();
+                        $scope.audio = null;
+                    }
+                    $interval.cancel(timerPromise);
+                });
+
+                // Format time
+                $scope.formatTime = function(seconds) {
+                    let hours = Math.floor(seconds / 3600);
+                    let minutes = Math.floor((seconds % 3600) / 60);
+                    let secs = seconds % 60;
+                    return (hours < 10 ? "0" : "") + hours + ":" + 
+                           (minutes < 10 ? "0" : "") + minutes + ":" + 
+                           (secs < 10 ? "0" : "") + secs;
+                };
+
+                // Calculate progress and answered count
+                $scope.calculateProgress = function() {
+                    let answered = 0;
+                    $scope.questions.forEach(question => {
+                        if ($scope.userAnswers[question.id]) {
+                            answered++;
+                        }
+                    });
+                    $scope.answeredCount = answered;
+                    const total = $scope.questions.length;
+                    $scope.progress = total > 0 ? (answered / total) * 100 : 0;
+                    return $scope.progress;
+                };
+
+                // Update progress on answer change
+                $scope.updateProgress = function() {
+                    $scope.calculateProgress();
+                };
+
+                // Initial progress calculation
+                $scope.calculateProgress();
+
+                // Filter questions by part
+                $scope.filteredQuestions = $scope.questions.filter(q => q.part === $scope.currentPart);
+
+                $scope.confirmStartTest = function() {
+                    $scope.testStarted = true;
+                    timerPromise = $interval(function() {
+                        if ($scope.timer > 0) {
+                            $scope.timer--;
+                        } else {
+                            $scope.submitTest();
+                        }
+                    }, 1000);
+                    $scope.audio = new Audio($scope.audioResourceUrl + $scope.selectedTest.fullAudio);
+                    $scope.audio.play();
+                };
+
+                // Change part
+                $scope.changePart = function(part) {
+                    $scope.currentPart = part;
+                    $scope.currentPartIndex = $scope.parts.indexOf(part);
+                    $scope.filteredQuestions = $scope.questions.filter(q => q.part === part);
+                    $scope.currentQuestionIndex = 0;
+                };
+
+                // Jump to question
+                $scope.jumpToQuestion = function(id) {
+                    let index = $scope.filteredQuestions.findIndex(q => q.id === id);
+                    if (index !== -1) {
+                        $scope.currentQuestionIndex = index;
+                    }
+                };
+
+                // Select answer in sidebar
+                $scope.selectAnswer = function(questionId, option) {
+                    $scope.userAnswers[questionId] = option;
+                    $scope.updateProgress();
+                };
+
+                // TOEIC scaled score conversion
+                function generateListeningTable() {
+                  const table = {};
+                  for (let i = 0; i <= 100; i++) {
+                      let score = i === 0 ? 5 : (i + 2) * 5;
+                      table[i] = Math.min(score, 495);
+                  }
+                  return table;
+                  }
+                function generateReadingTable() {
+                  const table = {};
+                  for (let i = 0; i <= 100; i++) {
+                      let score = i < 3 ? 5 : (i - 1) * 5;
+                      table[i] = Math.min(score, 495);
+                  }
+                  return table;
+                }
+
+                function calculateScaledScore(rawScore, section) {
+                  const table = section === 'listening' ? generateListeningTable() : generateReadingTable();
+                  return table[rawScore] || 5;
+                };
+
+                // Submit test and calculate score
+                $scope.submitTest = function() {
+                    $scope.listeningScore = 0;
+                    $scope.readingScore = 0;
+                    $scope.listeningTotal = 0;
+                    $scope.readingTotal = 0;
+
+                    $scope.questions.forEach(question => {
+                        const isListening = ["Part I", "Part II", "Part III", "Part IV"].includes(question.part);
+                        if (isListening) {
+                            $scope.listeningTotal++;
+                            if ($scope.userAnswers[question.id] === question.correctAnswer) {
+                                $scope.listeningScore++;
+                            }
+                        } else {
+                            $scope.readingTotal++;
+                            if ($scope.userAnswers[question.id] === question.correctAnswer) {
+                                $scope.readingScore++;
+                            }
+                        }
+                    });
+
+                    $scope.listeningScaled = calculateScaledScore($scope.listeningScore, 'listening');
+                    $scope.readingScaled = calculateScaledScore($scope.readingScore, 'reading');
+                    $scope.score = $scope.listeningScore + $scope.readingScore;
+
+                    if ($scope.audio) {
+                        $scope.audio.pause();
+                        $scope.audio = null;
+                    }
+					
+				    $scope.showReview = true;
+                };
+
+                // Toggle review visibility
+                $scope.toggleReview = function() {
+                    $scope.showReview = !$scope.showReview;
+                };
+
+                // Go back to test list
+                $scope.goBackToList = function() {
+                    $location.path('/');
+                };
+
+                $scope.parseTime = function(timeString) {
+                const parts = timeString.split(':');
+                if (parts.length === 2) {
+                    const minutes = parseInt(parts[0], 10);
+                    const seconds = parseInt(parts[1], 10);
+                    return minutes * 60 + seconds;
+                }
+                return parseInt(timeString, 10) || 0;
+                };
+
+                $scope.jumpTo = function(timeInput) {
+                    const audioElm = document.getElementById('fullAudio');
+                    if (!audioElm) return;
+
+                    let seconds;
+                    if (typeof timeInput === 'string') {
+                        seconds = $scope.parseTime(timeInput);
+                    } else {
+                        seconds = timeInput;
+                    }
+
+                    audioElm.currentTime = seconds;
+                    audioElm.play();
+                };
+
+                $scope.$on('$viewContentLoaded', function() {
+                    // Play one audio at a time
+                    document.addEventListener('play', function(e) {
+                        const audios = document.querySelectorAll('audio');
+                        audios.forEach(audio => {
+                            if (audio !== e.target) {
+                                audio.pause();
+                                audio.currentTime = 0;
+                            }
+                        });
+                    }, true);
+                });
+                
+            });
+    </script>
+</body>
+</html>
