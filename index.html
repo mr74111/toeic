@@ -18,6 +18,7 @@
     <script src="assets/test2.js"></script>
     <script src="assets/test3.js"></script>
     <script src="assets/test4.js"></script>
+	<script src="assets/test5.js"></script>
     <script src="assets/part6.js"></script>
     <script src="assets/part7.js"></script>
     <style>
@@ -88,9 +89,10 @@
             test1,
             test2,
             test3,
-            test4
+            test4,
+			test5
         ];
-        const allQuestions = test1.questions.concat(test2.questions, test3.questions, test4.questions);
+        const allQuestions = test1.questions.concat(test2.questions, test3.questions, test4.questions, test5.questions);
         let partVQuestions = [];
         allQuestions.forEach(function(item) {
             if (item.part === 'Part V') {
